@@ -1,0 +1,250 @@
+{
+  "info": {
+    "api_url": "http://localhost:8080",
+    "api_user_access_token": "ory_at_rlWxZkmZlpzgJFlvaqXwDGzmwJj8ZQJiIHB2ULyo-hU.PWFfP-A7C-EpJccoMivo6AOpElgybpTGmJX13WnUa6M",
+    "collection_config": {
+      "csv_import": {
+        "enabled": true,
+        "enabled:info": {
+          "is_default": false
+        },
+        "import_settings": {
+          "__EASYDB_CSV_IMPORTER_SETTINGS": true,
+          "schema_version": 5,
+          "settings": {
+            "_pool": null,
+            "action_chunk_size": 100,
+            "append_nested": false,
+            "append_reverse_nested": false,
+            "comment": "",
+            "control_fields_warning_shown": null,
+            "create_linked_objects": true,
+            "dest_field_row": 0,
+            "header_row": 1,
+            "id_mapping": null,
+            "mapping": {
+              "custom_name": {},
+              "custom_ref": {},
+              "name": "name",
+              "ref": "ref"
+            },
+            "mask": "testobjecttype__all_fields",
+            "match_existing": null,
+            "objecttype": "testobjecttype"
+          },
+          "version": 2
+        },
+        "import_settings:info": {
+          "is_default": false
+        }
+      }
+    },
+    "config": {
+      "plugin": {
+        "collection-csv-import": {}
+      }
+    },
+    "external_url": "http://localhost",
+    "file": {
+      "_id": 2217,
+      "date_uploaded": "2024-04-03T09:26:09Z",
+      "filesize": 54,
+      "status": "processing",
+      "last_status_at": "2024-04-03T09:26:09.091438Z",
+      "extension": "csv",
+      "is_original": true,
+      "hash": "c4bde63966eeb272025d7b1640741beff1bb0262ce8ffcc695431e39c6f8b6b3",
+      "class_extension": "office.csv",
+      "class_version_status": [
+        "office.original.pending_metadata_internal"
+      ],
+      "technical_metadata": {
+        "extension": "csv"
+      },
+      "versions": {
+        "original": {
+          "_id": 2217,
+          "class": "office",
+          "class_extension": "office.csv",
+          "date_created": "2024-04-03T09:26:09Z",
+          "_download_allowed": true,
+          "extension": "csv",
+          "filesize": 54,
+          "hash": "c4bde63966eeb272025d7b1640741beff1bb0262ce8ffcc695431e39c6f8b6b3",
+          "last_status_at": "2024-04-03T09:26:09.091438Z",
+          "percent_done": 100,
+          "status": "processing",
+          "url": "http://localhost/api/v1/eas/download/2217/c4bde63966eeb272025d7b1640741beff1bb0262ce8ffcc695431e39c6f8b6b3/original.csv",
+          "technical_metadata": {
+            "extension": "csv"
+          },
+          "watermark": false
+        }
+      },
+      "class": "office",
+      "custom_produce_config": null,
+      "compiled": "CSV 54 B",
+      "original_filename": "Test.csv",
+      "original_filepath": "Test.csv",
+      "original_filename_basename": "Test",
+      "watermark": false
+    }
+  },
+  "objects": [
+    {
+      "_callback_context": {
+        "hash": "a2a43443-7c07-4c0d-8c5d-ea3011410f5b",
+        "original_mask": "object__all_fields"
+      },
+      "_collections": [],
+      "_comment": "",
+      "_create_user": null,
+      "_created": "0001-01-01T00:00:00Z",
+      "_current": null,
+      "_format": "long",
+      "_last_modified": "0001-01-01T00:00:00Z",
+      "_latest_version": false,
+      "_mask": "_all_fields",
+      "_mask_display_name": {
+        "und": "_all_fields"
+      },
+      "_objecttype": "object",
+      "_objecttype_display_name": {
+        "und": "object"
+      },
+      "_owner": null,
+      "_published": [],
+      "_published_count": 0,
+      "_standard": {
+        "1": {
+          "text": {
+            "de-DE": "#0"
+          },
+          "html": {
+            "de-DE": "<span class=\"ez-format-comma>#0</span>"
+          }
+        }
+      },
+      "_system_object_id": 0,
+      "_uuid": "",
+      "object": {
+        "_nested:object__files": [
+          {
+            "file": [
+              {
+                "_id": 2217,
+                "preferred": true,
+                "date_uploaded": "2024-04-03T09:26:09Z",
+                "filesize": 54,
+                "status": "processing",
+                "last_status_at": "2024-04-03T09:26:09.091438Z",
+                "extension": "csv",
+                "is_original": true,
+                "hash": "c4bde63966eeb272025d7b1640741beff1bb0262ce8ffcc695431e39c6f8b6b3",
+                "class_extension": "office.csv",
+                "class_version_status": [
+                  "office.original.pending_metadata_internal"
+                ],
+                "technical_metadata": {
+                  "extension": "csv"
+                },
+                "versions": {
+                  "original": {
+                    "_id": 2217,
+                    "class": "office",
+                    "class_extension": "office.csv",
+                    "date_created": "2024-04-03T09:26:09Z",
+                    "_download_allowed": true,
+                    "extension": "csv",
+                    "filesize": 54,
+                    "hash": "c4bde63966eeb272025d7b1640741beff1bb0262ce8ffcc695431e39c6f8b6b3",
+                    "last_status_at": "2024-04-03T09:26:09.091438Z",
+                    "percent_done": 100,
+                    "status": "processing",
+                    "url": "http://localhost/api/v1/eas/download/2217/c4bde63966eeb272025d7b1640741beff1bb0262ce8ffcc695431e39c6f8b6b3/original.csv?filename=Test.csv&x-fylr-signature=c4bde63966eeb272025d7b1640741beff1bb0262ce8ffcc695431e39c6f8b6b3..2024-04-04T09-26-09..222990ab6aa6af4f7cf7ca671ddeaf03970b6697a80b9387c7939255a7653c63",
+                    "technical_metadata": {
+                      "extension": "csv"
+                    },
+                    "watermark": false
+                  }
+                },
+                "class": "office",
+                "custom_produce_config": null,
+                "compiled": "CSV 54 B",
+                "original_filename": "Test.csv",
+                "original_filepath": "Test.csv",
+                "original_filename_basename": "Test",
+                "watermark": false
+              }
+            ],
+            "name": ""
+          }
+        ],
+        "_nested:object__other_files": [],
+        "_pool": {
+          "_basetype": "pool",
+          "pool": {
+            "_id": 2,
+            "_id_parent": 1,
+            "name": {
+              "da-DK": "Standard pool",
+              "de-DE": "Standard-Pool",
+              "en-US": "Standard pool",
+              "fi-FI": "Oletuspooli",
+              "fr-FR": "Regroupement Standard (Pool)",
+              "it-IT": "Pool Standard",
+              "ru-RU": "",
+              "sv-SE": "Standard pool",
+              "uz-UZ": ""
+            },
+            "reference": "system:standard",
+            "shortname": null
+          },
+          "_path": [
+            {
+              "_basetype": "pool",
+              "pool": {
+                "_id": 1,
+                "name": {
+                  "da-DK": "All pools",
+                  "de-DE": "Alle Pools",
+                  "en-US": "All pools",
+                  "fi-FI": "Kaikki poolit",
+                  "fr-FR": "Tous les regroupements (Pools)",
+                  "it-IT": "Tutte i Pools",
+                  "ru-RU": "",
+                  "sv-SE": "Alla pooler",
+                  "uz-UZ": ""
+                },
+                "reference": "system:root",
+                "shortname": null
+              }
+            },
+            {
+              "_basetype": "pool",
+              "pool": {
+                "_id": 2,
+                "_id_parent": 1,
+                "name": {
+                  "da-DK": "Standard pool",
+                  "de-DE": "Standard-Pool",
+                  "en-US": "Standard pool",
+                  "fi-FI": "Oletuspooli",
+                  "fr-FR": "Regroupement Standard (Pool)",
+                  "it-IT": "Pool Standard",
+                  "ru-RU": "",
+                  "sv-SE": "Standard pool",
+                  "uz-UZ": ""
+                },
+                "reference": "system:standard",
+                "shortname": null
+              }
+            }
+          ]
+        },
+        "_version": 1,
+        "ref": ""
+      }
+    }
+  ]
+}
