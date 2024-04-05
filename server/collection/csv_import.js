@@ -1,5 +1,11 @@
 const fs = require('fs');
 const axios = require('axios');
+require("../../modules/cui-dom-mock");
+require("../../modules/cui-node");
+
+const ez5js = fs.readFileSync('../modules/easydb-webfrontend/build/headless/ez5.js', 'utf8');
+eval(ez5js);
+
 
 let info = undefined
 if (process.argv.length >= 3) {

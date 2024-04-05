@@ -1,0 +1,3 @@
+[submodule "modules/easydb-webfrontend"]
+	path = modules/easydb-webfrontend
+	url = git@github.com:programmfabrik/easydb-webfrontend.git
