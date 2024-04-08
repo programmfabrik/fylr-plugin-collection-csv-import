@@ -24,6 +24,7 @@ eval(ez5js);
 
 
 let info = undefined
+let data = undefined
 if (process.argv.length >= 3) {
     info = JSON.parse(process.argv[2])
 }
@@ -39,7 +40,6 @@ process.stdin.on('data', d => {
 });
 
 process.stdin.on('end', () => {
-    let data;
     try {
         //fs.writeFileSync('/tmp/post-in', input);
         data = JSON.parse(input);
@@ -48,8 +48,37 @@ process.stdin.on('end', () => {
         process.exit(1);
     }
 
+    // Check that we are uploading a csv file
+    if (data.info.file.extension !== "csv") {
+        console.error("This plugin only works with CSV files");
+        process.exit(0);
+    }
+
+    const csvUrl = data.info.file.versions.original.url + "?access_token=" + data.info.api_user_access_token
+    // Get the csv from the server , we use the access token included in info
+    axios.get(csvUrl).then((response) => {
+        // Run the importer
+        runImporter(response.data).done(() => {
+            delete(data.info)
+            console.log(JSON.stringify(data));
+        }).fail((error) => {
+            console.error("Could not run the importer", error);
+            process.exit(1);
+        });
+    }).catch((error) => {
+        console.error("Could not get the csv file", error);
+        process.exit(1);
+    });
+
+
+
+});
+
+function runImporter(csv) {
+    let dfr = new CUI.Deferred();
     EventPoller = {
-        listen: () => {}
+        listen: () => {},
+        saveEvent: () => {}
     };
     ez5.defaults = {
         class: {
@@ -60,49 +89,49 @@ process.stdin.on('end', () => {
             SystemUser: SystemUser
         }
     }
+    // Pollyfill some functions that are not available in headless mode
     Localization.prototype.init = () => {};
     Localization.prototype.setLanguage = () => { return CUI.resolvedPromise()};
+    ez5.splash.show = () => {};
+    ez5.splash.hide = () => {};
     ez5.rootMenu = {
         registerApp: () => {}
     }
+
+    //Start the ez5 app
     ez5.session = new Session();
     ez5.settings = {
         version: "6.10"
     };
     ez5.tokenParam = "access_token";
     ez5.session_ready().done( () => {
-        console.log("Session ready");
+        console.log("Session ready... loading schema and running importer");
         ez5.session.get(data.info.api_user_access_token).fail( (e) => {
             console.error("Could not get user session", e);
+            dfr.reject();
         }).done((response, xhr) => {
-            console.log("Session returned ok");
             ez5.schema.load_schema().done(() => {
-                console.log("Schema loaded");
-                console.log(ez5.schema);
-                process.exit(0);
+                console.log("Schema loaded, running importer");
+                importer = new HeadlessObjecttypeCSVImporter();
+                console.log(data);
+                importerOpts = {
+                    settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
+                    csv_filename: data.info.file.original_filename,
+                    csv_text: csv
+                }
+                try {
+                    importer.startHeadlessImport(importerOpts).done(() => {
+                        console.log("Importer finished");
+                        dfr.resolve();
+                    });
+                }
+                catch(e) {
+                    console.error("Importer failed", e);
+                    dfr.reject();
+                }
             });
         });
     });
 
-
-
-    // let modified = false
-    //
-    // // Check that we are uploading a csv file
-    // if (data.info.file.extension !== "csv") {
-    //     console.error("This plugin only works with CSV files");
-    //     process.exit(0);
-    // }
-    //
-    // const csvUrl = data.info.file.versions.original.url + "?access_token=" + data.info.api_user_access_token
-    // // Get the csv from the server , we use the access token included in info
-    // axios.get(csvUrl).then((response) => {
-    //     console.log(response.data);
-    //     delete(data.info)
-    //     console.log(JSON.stringify(data));
-    // }).catch((error) => {
-    //     console.error("Could not get the csv file");
-    //     process.exit(0);
-    // });
-
-});
+    return dfr.promise();
+}
