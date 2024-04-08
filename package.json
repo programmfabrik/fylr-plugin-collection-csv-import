@@ -20,5 +20,7 @@
     "axios": "^1.6.8",
     "jsdom": "^24.0.0",
     "xhr2": "^0.2.1"
-  }
+  },
+  "devDependencies": {},
+  "keywords": []
 }

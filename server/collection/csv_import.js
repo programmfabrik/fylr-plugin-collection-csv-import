@@ -110,8 +110,12 @@ function runImporter(csv) {
             console.error("Could not get user session", e);
             dfr.reject();
         }).done((response, xhr) => {
-            ez5.schema.load_schema().done(() => {
-                console.log("Schema loaded, running importer");
+            // noinspection JSVoidFunctionReturnValueUsed
+            CUI.when([
+                ez5.schema.load_schema(),
+                (ez5.tagForm = new TagFormSimple()).load()
+            ]).done(() => {
+                console.log("Schema and tags loaded, running importer");
                 importer = new HeadlessObjecttypeCSVImporter();
                 console.log(data);
                 importerOpts = {
