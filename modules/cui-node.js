@@ -1,7 +1,7 @@
 const axios = require("axios");
-global.CUI = require('./easydb-webfrontend/build/headless/cui'); // Set CUI variable globally.
-
-// Simple override of XHR class.
+ // Set CUI variable globally.
+/**
+//Simple override of XHR class.
 CUI.XHR = class XHR extends CUI.Element {
 
     initOpts() {
@@ -10,7 +10,7 @@ CUI.XHR = class XHR extends CUI.Element {
             method: {
                 mandatory: true,
                 default: "GET",
-                check: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+                check: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"]
             },
             url: {
                 mandatory: true,
@@ -26,10 +26,22 @@ CUI.XHR = class XHR extends CUI.Element {
             headers: {
                 check: "PlainObject",
                 default: {}
+            },
+            withCredentials: {
+                check: Boolean,
+                default: false,
+                mandatory: true
+            },
+            json_pretty: {
+                default: false,
+                check: (v) => {
+                    return (v == false || v == true || CUI.util.isString(v))
+                }
             }
         });
         return this;
     }
+
 
     start() {
         const deferred = new CUI.Deferred();
@@ -45,6 +57,7 @@ CUI.XHR = class XHR extends CUI.Element {
         axios.request(config).then((response) => {
             return deferred.resolve(response.data)
         }).catch((error) => {
+            console.log("error.response: ", error)
             if (error.response) {
                 if (!error.response.data) {
                     error.response.data = {};
@@ -58,3 +71,5 @@ CUI.XHR = class XHR extends CUI.Element {
         return deferred.promise();
     }
 }
+
+ **/

@@ -18,6 +18,7 @@
   "homepage": "https://github.com/programmfabrik/fylr-plugin-collection-csv-import#readme",
   "dependencies": {
     "axios": "^1.6.8",
-    "jsdom": "^24.0.0"
+    "jsdom": "^24.0.0",
+    "xhr2": "^0.2.1"
   }
 }

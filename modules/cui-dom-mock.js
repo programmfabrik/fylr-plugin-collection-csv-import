@@ -1,7 +1,6 @@
 // Mocks the DOM to be able to require CUI.
 const jsdom = require('jsdom');
 global.window = new jsdom.JSDOM(`<!DOCTYPE html>`, { url: "https://example.com/" }).window;
-global.window.headless_mode = true;
 global.window.Error = () => {
 };
 global.alert = () => {
