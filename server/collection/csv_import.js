@@ -2,9 +2,9 @@ const fs = require('fs');
 const axios = require('axios');
 
 // Mocks the DOM to be able to require CUI.
-require("../../modules/cui-dom-mock");
+require("../modules/cui-dom-mock");
 // CUI is required in the headless ez5.js
-global.CUI = require('../../modules/easydb-webfrontend/build/headless/cui');
+global.CUI = require('../modules/cui');
 // We need xhr2 to pollyfill the XMLHttpRequest object, xmlhttprequest is not available in node and is used by CUI and ez5
 global.XMLHttpRequest = XMLHttpRequest = require("xhr2");
 
@@ -19,8 +19,6 @@ const ez5js = fs.readFileSync('../modules/easydb-webfrontend/build/headless/ez5.
 // Ez5 is designed to run in the browser, also was coded to run all classes in global scope, so we need to run it in the global scope
 // for this we are going to use eval, if we require the ez5.js file it will run in the module scope and we will not have access to the classes
 eval(ez5js);
-
-
 
 
 let info = undefined
@@ -69,9 +67,6 @@ process.stdin.on('end', () => {
         console.error("Could not get the csv file", error);
         process.exit(1);
     });
-
-
-
 });
 
 function runImporter(csv) {
@@ -105,7 +100,6 @@ function runImporter(csv) {
     };
     ez5.tokenParam = "access_token";
     ez5.session_ready().done( () => {
-        console.log("Session ready... loading schema and running importer");
         ez5.session.get(data.info.api_user_access_token).fail( (e) => {
             console.error("Could not get user session", e);
             dfr.reject();
@@ -115,9 +109,7 @@ function runImporter(csv) {
                 ez5.schema.load_schema(),
                 (ez5.tagForm = new TagFormSimple()).load()
             ]).done(() => {
-                console.log("Schema and tags loaded, running importer");
                 importer = new HeadlessObjecttypeCSVImporter();
-                console.log(data);
                 importerOpts = {
                     settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
                     csv_filename: data.info.file.original_filename,
@@ -125,8 +117,10 @@ function runImporter(csv) {
                 }
                 try {
                     importer.startHeadlessImport(importerOpts).done(() => {
-                        console.log("Importer finished");
                         dfr.resolve();
+                    }).fail((e) => {
+                        console.error("Importer failed", e);
+                        dfr.reject();
                     });
                 }
                 catch(e) {

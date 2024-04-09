@@ -19,9 +19,17 @@ google-csv: ## get loca CSV from google
 	curl --silent -L -o - "$(GOOGLE_URL)$(GID_LOCA)" | tr -d "\r" > $(L10N)
 
 build: clean ## copy files to build folder
+	npm ci
 	mkdir -p $(BUILD_DIR)/$(PLUGIN_NAME)
-	cp -r server $(BUILD_DIR)/$(PLUGIN_NAME)
+	mkdir -p $(BUILD_DIR)/$(PLUGIN_NAME)/server/collection
+	ncc build server/collection/csv_import.js -o build/collection-csv-import/server/collection/
+	mv build/collection-csv-import/server/collection/index.js build/collection-csv-import/server/collection/csv_import.js
+	cp -r modules/easydb-webfrontend/build/headless $(BUILD_DIR)/$(PLUGIN_NAME)/server/modules
+	cp modules/cui-dom-mock.js $(BUILD_DIR)/$(PLUGIN_NAME)/server/modules
 	cp -r manifest.master.yml $(BUILD_DIR)/$(PLUGIN_NAME)/manifest.yml
+
+rundev: build
+	(cd dev; node server.js)
 
 clean: ## clean
 	rm -rf $(BUILD_DIR)

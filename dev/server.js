@@ -8,7 +8,8 @@ Yoy need a valid input file to test this script.
 const { spawn } = require('child_process');
 const fs = require('fs');
 
-const scriptPath = '../server/collection/csv_import.js';
+//const scriptPath = '../server/collection/csv_import.js';
+const scriptPath = '../build/collection-csv-import/server/collection/csv_import.js';
 const scriptInputFile = 'input.json';
 
 const inputData = fs.readFileSync(scriptInputFile, 'utf8');
