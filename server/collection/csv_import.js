@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 
 // Mocks the DOM to be able to require CUI.
@@ -11,10 +12,11 @@ global.XMLHttpRequest = XMLHttpRequest = require("xhr2");
 
 // We need to indicate ez5 that we are in headless mode and the server url
 global.window.headless_mode = true;
-global.window.easydb_server_url = "http://localhost/api/v1";
+
 
 // Run headless ez5
-const ez5js = fs.readFileSync('../modules/easydb-webfrontend/build/headless/ez5.js', 'utf8');
+const ez5jsPath = path.join(__dirname, '../modules/ez5.js');
+const ez5js = fs.readFileSync(ez5jsPath, 'utf8');
 //const ez5js = fs.readFileSync('../modules/easydb-webfrontend/build/web/js/easydb5.js', 'utf8');
 // Ez5 is designed to run in the browser, also was coded to run all classes in global scope, so we need to run it in the global scope
 // for this we are going to use eval, if we require the ez5.js file it will run in the module scope and we will not have access to the classes
@@ -26,6 +28,10 @@ let data = undefined
 if (process.argv.length >= 3) {
     info = JSON.parse(process.argv[2])
 }
+
+// ez5 outputs a lot of logs, we are going to silence them
+const originalConsoleLog = console.log;
+console.log = () => {};
 
 let input = '';
 process.stdin.on('data', d => {
@@ -58,7 +64,8 @@ process.stdin.on('end', () => {
         // Run the importer
         runImporter(response.data).done(() => {
             delete(data.info)
-            console.log(JSON.stringify(data));
+            originalConsoleLog(JSON.stringify(data));
+            process.exit(0);
         }).fail((error) => {
             console.error("Could not run the importer", error);
             process.exit(1);
@@ -70,6 +77,7 @@ process.stdin.on('end', () => {
 });
 
 function runImporter(csv) {
+    global.window.easydb_server_url = data.info.api_url + "/api/v1";
     let dfr = new CUI.Deferred();
     EventPoller = {
         listen: () => {},

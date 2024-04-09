@@ -18,7 +18,7 @@ google-csv: ## get loca CSV from google
 	mkdir -p $(L10N_DIR)
 	curl --silent -L -o - "$(GOOGLE_URL)$(GID_LOCA)" | tr -d "\r" > $(L10N)
 
-build: clean ## copy files to build folder
+build: clean ## Build the js files
 	npm ci
 	mkdir -p $(BUILD_DIR)/$(PLUGIN_NAME)
 	mkdir -p $(BUILD_DIR)/$(PLUGIN_NAME)/server/collection

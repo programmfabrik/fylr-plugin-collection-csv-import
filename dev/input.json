@@ -1,7 +1,7 @@
 {
   "info": {
     "api_url": "http://localhost:8080",
-    "api_user_access_token": "ory_at_6v9AmMuxHVZXsQt7jH3afqB5haH46jmoaPLA2acvDZo.nkVG99Vh1l1nakCFNgs-VNoM7kLaFtTWqfKJg4B7xe0",
+    "api_user_access_token": "ory_at_NidNcg_DrIrdoyjMNqRLu0ot_42Zc10otB_XWLBOEMI.NtLkc55ClDJWScIWr8gjmmj2F6j6Z92zv1hFW6-XeBI",
     "collection_config": {
       "csv_import": {
         "enabled": true,
