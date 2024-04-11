@@ -25,7 +25,6 @@ build: clean ## Build the js files
 	ncc build server/collection/csv_import.js -o build/collection-csv-import/server/collection/
 	mv build/collection-csv-import/server/collection/index.js build/collection-csv-import/server/collection/csv_import.js
 	cp -r modules/easydb-webfrontend/build/headless $(BUILD_DIR)/$(PLUGIN_NAME)/server/modules
-	cp modules/cui-dom-mock.js $(BUILD_DIR)/$(PLUGIN_NAME)/server/modules
 	cp -r manifest.master.yml $(BUILD_DIR)/$(PLUGIN_NAME)/manifest.yml
 
 rundev: build
