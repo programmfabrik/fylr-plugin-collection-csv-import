@@ -1,9 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const jsdom = require('jsdom');
+
 
 // Mocks the DOM to be able to require CUI.
-require("../modules/cui-dom-mock");
+global.window = new jsdom.JSDOM(`<!DOCTYPE html>`, { url: "https://example.com/" }).window;
+global.window.Error = () => {
+};
+global.alert = () => {
+};
+global.navigator = window.navigator;
+global.document = window.document;
+global.HTMLElement = window.HTMLElement;
+global.HTMLCollection = window.HTMLCollection;
+global.NodeList = window.NodeList;
+global.Node = window.Node;
+global.self = global;
+
+const debugInput = false; // Set to true to debug the input and output to a file on /tmp/post-in
+
 // CUI is required in the headless ez5.js
 global.CUI = require('../modules/cui');
 // We need xhr2 to pollyfill the XMLHttpRequest object, xmlhttprequest is not available in node and is used by CUI and ez5
@@ -13,6 +29,12 @@ global.XMLHttpRequest = XMLHttpRequest = require("xhr2");
 // We need to indicate ez5 that we are in headless mode and the server url
 global.window.headless_mode = true;
 
+
+// ez5 outputs a lot of logs, we are going to silence them
+const originalConsoleLog = console.log;
+const originalConsoleInfo = console.info;
+console.log = () => {};
+console.info = () => {};
 
 // Run headless ez5
 const ez5jsPath = path.join(__dirname, '../modules/ez5.js');
@@ -25,13 +47,11 @@ eval(ez5js);
 
 let info = undefined
 let data = undefined
+let csv_importer_settings = undefined
 if (process.argv.length >= 3) {
     info = JSON.parse(process.argv[2])
 }
 
-// ez5 outputs a lot of logs, we are going to silence them
-const originalConsoleLog = console.log;
-console.log = () => {};
 
 let input = '';
 process.stdin.on('data', d => {
@@ -45,8 +65,20 @@ process.stdin.on('data', d => {
 
 process.stdin.on('end', () => {
     try {
-        //fs.writeFileSync('/tmp/post-in', input);
+        if(debugInput)
+        {
+            // If debug input is set then we output the input to a file and we allow the upload of the file
+            fs.writeFileSync('/tmp/post-in', input);
+            data = JSON.parse(input);
+
+            finishScript();
+        }
         data = JSON.parse(input);
+        csv_importer_settings = data.info["collection_config"]["csv_import"]["import_settings"]["settings"];
+        if (!csv_importer_settings) {
+            console.error("No csv_import settings found in the collection config");
+            process.exit(1);
+        }
     } catch(e) {
         console.error(`Could not parse input: ${e.message}`, e.stack);
         process.exit(1);
@@ -54,8 +86,7 @@ process.stdin.on('end', () => {
 
     // Check that we are uploading a csv file
     if (data.info.file.extension !== "csv") {
-        console.error("This plugin only works with CSV files");
-        process.exit(0);
+        finishScript();
     }
 
     const csvUrl = data.info.file.versions.original.url + "?access_token=" + data.info.api_user_access_token
@@ -63,9 +94,7 @@ process.stdin.on('end', () => {
     axios.get(csvUrl).then((response) => {
         // Run the importer
         runImporter(response.data).done(() => {
-            delete(data.info)
-            originalConsoleLog(JSON.stringify(data));
-            process.exit(0);
+            finishScript();
         }).fail((error) => {
             console.error("Could not run the importer", error);
             process.exit(1);
@@ -124,6 +153,7 @@ function runImporter(csv) {
                     csv_text: csv
                 }
                 try {
+                    debugger;
                     importer.startHeadlessImport(importerOpts).done(() => {
                         dfr.resolve();
                     }).fail((e) => {
@@ -140,4 +170,10 @@ function runImporter(csv) {
     });
 
     return dfr.promise();
+}
+
+function finishScript() {
+    delete(data.info)
+    originalConsoleLog(JSON.stringify(data));
+    process.exit(0);
 }
