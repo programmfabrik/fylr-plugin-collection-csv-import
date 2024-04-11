@@ -35,6 +35,7 @@ const originalConsoleLog = console.log;
 const originalConsoleInfo = console.info;
 console.log = () => {};
 console.info = () => {};
+console.timeLog = () => {};
 
 // Run headless ez5
 const ez5jsPath = path.join(__dirname, '../modules/ez5.js');
@@ -70,7 +71,6 @@ process.stdin.on('end', () => {
             // If debug input is set then we output the input to a file and we allow the upload of the file
             fs.writeFileSync('/tmp/post-in', input);
             data = JSON.parse(input);
-
             finishScript();
         }
         data = JSON.parse(input);
@@ -144,17 +144,24 @@ function runImporter(csv) {
             // noinspection JSVoidFunctionReturnValueUsed
             CUI.when([
                 ez5.schema.load_schema(),
-                (ez5.tagForm = new TagFormSimple()).load()
+                (ez5.tagForm = new TagFormSimple()).load(),
+                (ez5.pools = new PoolManagerList()).loadList()
             ]).done(() => {
                 importer = new HeadlessObjecttypeCSVImporter();
                 importerOpts = {
                     settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
                     csv_filename: data.info.file.original_filename,
-                    csv_text: csv
+                    csv_text: csv,
+                    debug_mode: false
                 }
                 try {
-                    debugger;
+                    if(importerOpts.debug_mode) {
+                        // For being able to debug the importer we need to restore the console functions
+                        console.log = originalConsoleLog;
+                        console.info = originalConsoleInfo;
+                    }
                     importer.startHeadlessImport(importerOpts).done(() => {
+                        // We imported the csv successfully
                         dfr.resolve();
                     }).fail((e) => {
                         console.error("Importer failed", e);
