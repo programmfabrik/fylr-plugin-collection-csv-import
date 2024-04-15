@@ -148,9 +148,9 @@ function runImporter(csv) {
                 (ez5.pools = new PoolManagerList()).loadList()
             ]).done(() => {
                 importer = new HeadlessObjecttypeCSVImporter();
-                debugger;
                 importerOpts = {
                     settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
+                    collection: data.info["collection_id"],
                     csv_filename: data.info.file.original_filename,
                     csv_text: csv,
                     debug_mode: false
