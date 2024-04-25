@@ -1,3 +1,6 @@
+const DEBUG_INPUT = false; // Set to true to debug the input and output to a file on /tmp/post-in
+
+
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -17,17 +20,14 @@ global.HTMLCollection = window.HTMLCollection;
 global.NodeList = window.NodeList;
 global.Node = window.Node;
 global.self = global;
-
-const debugInput = false; // Set to true to debug the input and output to a file on /tmp/post-in
+// We need to indicate ez5 that we are in headless mode and the server url
+global.window.headless_mode = true;
 
 // CUI is required in the headless ez5.js
 global.CUI = require('../modules/cui');
 // We need xhr2 to pollyfill the XMLHttpRequest object, xmlhttprequest is not available in node and is used by CUI and ez5
 global.XMLHttpRequest = XMLHttpRequest = require("xhr2");
 
-
-// We need to indicate ez5 that we are in headless mode and the server url
-global.window.headless_mode = true;
 
 
 // ez5 outputs a lot of logs, we are going to silence them
@@ -36,6 +36,11 @@ const originalConsoleInfo = console.info;
 console.log = () => {};
 console.info = () => {};
 console.timeLog = () => {};
+
+const EventPoller = {
+    listen: () => {},
+    saveEvent: () => {}
+};
 
 // Run headless ez5
 const ez5jsPath = path.join(__dirname, '../modules/ez5.js');
@@ -64,9 +69,10 @@ process.stdin.on('data', d => {
     }
 });
 
+
 process.stdin.on('end', () => {
     try {
-        if(debugInput)
+        if(DEBUG_INPUT)
         {
             // If debug input is set then we output the input to a file and we allow the upload of the file
             fs.writeFileSync('/tmp/post-in', input);
@@ -74,6 +80,8 @@ process.stdin.on('end', () => {
             finishScript();
         }
         data = JSON.parse(input);
+        global.window.easydb_server_url = data.info.api_url + "/api/v1";
+
         csv_importer_settings = data.info["collection_config"]["csv_import"]["import_settings"]["settings"];
         if (!csv_importer_settings) {
             console.error("No csv_import settings found in the collection config");
@@ -106,12 +114,7 @@ process.stdin.on('end', () => {
 });
 
 function runImporter(csv) {
-    global.window.easydb_server_url = data.info.api_url + "/api/v1";
     let dfr = new CUI.Deferred();
-    EventPoller = {
-        listen: () => {},
-        saveEvent: () => {}
-    };
     ez5.defaults = {
         class: {
             User: User,
@@ -148,9 +151,11 @@ function runImporter(csv) {
                 (ez5.pools = new PoolManagerList()).loadList()
             ]).done(() => {
                 importer = new HeadlessObjecttypeCSVImporter();
+                collectionData = data.info.collection.collection;
                 importerOpts = {
                     settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
-                    collection: data.info["collection_id"],
+                    collection: collectionData._id,
+                    collection_objecttype: collectionData.create_object.objecttype,
                     csv_filename: data.info.file.original_filename,
                     csv_text: csv,
                     debug_mode: false
@@ -161,8 +166,11 @@ function runImporter(csv) {
                         console.log = originalConsoleLog;
                         console.info = originalConsoleInfo;
                     }
-                    importer.startHeadlessImport(importerOpts).done(() => {
+                    importer.startHeadlessImport(importerOpts).done((report) => {
                         // We imported the csv successfully
+                        if(!CUI.util.isEmpty(report)) {
+                            processReport(report);
+                        }
                         dfr.resolve();
                     }).fail((e) => {
                         console.error("Importer failed", e);
@@ -178,6 +186,24 @@ function runImporter(csv) {
     });
 
     return dfr.promise();
+}
+
+function processReport(report) {
+    data.upload_log ??= [];
+    for (const operation in report) {
+        operationWord = operation === "insert" ? "inserted" : "updated";
+        for (const objecttype in report[operation]) {
+            for (const object of report[operation][objecttype])
+            {
+                data.upload_log.push({
+                    operation: operation,
+                    objecttype: objecttype,
+                    msg: "Object " + object + " was "+ operationWord +" from hotfolder collection csv import",
+                    global_object_id: object
+                });
+            }
+        }
+    }
 }
 
 function finishScript() {
