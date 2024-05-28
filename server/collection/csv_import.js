@@ -97,7 +97,12 @@ process.stdin.on('end', () => {
         finishScript();
     }
 
-    const csvUrl = data.info.file.versions.original.url + "?access_token=" + data.info.api_user_access_token
+    let csvUrl = data.info.file.versions.original.url;
+    if(!csvUrl) {
+        finishWithError("No csv file url found in the input data");
+    }
+    csvUrl += "?access_token=" + data.info.api_user_access_token
+
     // Get the csv from the server , we use the access token included in info
     axios.get(csvUrl).then((response) => {
         // Run the importer
@@ -114,6 +119,7 @@ process.stdin.on('end', () => {
 });
 
 function runImporter(csv) {
+    debugger
     let dfr = new CUI.Deferred();
     ez5.defaults = {
         class: {
@@ -173,13 +179,11 @@ function runImporter(csv) {
                         }
                         dfr.resolve();
                     }).fail((e) => {
-                        console.error("Importer failed", e);
-                        dfr.reject();
+                        finishWithError("CSV Importer failed", e);
                     });
                 }
                 catch(e) {
-                    console.error("Importer failed", e);
-                    dfr.reject();
+                    finishWithError("CSV Importer failed", e);
                 }
             });
         });
@@ -199,7 +203,7 @@ function processReport(report) {
                     operation: operation,
                     objecttype: objecttype,
                     msg: "Object " + object + " was "+ operationWord +" from hotfolder collection csv import",
-                    global_object_id: object
+                    system_object_id: object
                 });
             }
         }
@@ -208,6 +212,21 @@ function processReport(report) {
 
 function finishScript() {
     delete(data.info)
+    originalConsoleLog(JSON.stringify(data));
+    process.exit(0);
+}
+
+function finishWithError(msg, e) {
+    delete(data.info);
+    if (e && e.message) {
+        msg = msg + ": " + e.message;
+    }
+    data.Error = {
+        code: "hotfolder-collection-upload-error",
+        error: msg,
+        realm: "api",
+        statuscode: 400
+    }
     originalConsoleLog(JSON.stringify(data));
     process.exit(0);
 }
