@@ -1,5 +1,5 @@
 const DEBUG_INPUT = false; // Set to true to debug the input and output to a file on /tmp/post-in
-
+const CSV_IMPORTER_DEBUG = false; // Set to true to enable the importer debug mode, this will output objects to log instead of importing them
 
 const fs = require('fs');
 const path = require('path');
@@ -119,7 +119,6 @@ process.stdin.on('end', () => {
 });
 
 function runImporter(csv) {
-    debugger
     let dfr = new CUI.Deferred();
     ez5.defaults = {
         class: {
@@ -154,7 +153,8 @@ function runImporter(csv) {
             CUI.when([
                 ez5.schema.load_schema(),
                 (ez5.tagForm = new TagFormSimple()).load(),
-                (ez5.pools = new PoolManagerList()).loadList()
+                (ez5.pools = new PoolManagerList()).loadList(),
+                (ez5.objecttypes = new Objecttypes()).load(),
             ]).done(() => {
                 importer = new HeadlessObjecttypeCSVImporter();
                 collectionData = data.info.collection.collection;
@@ -164,7 +164,7 @@ function runImporter(csv) {
                     collection_objecttype: collectionData.create_object.objecttype,
                     csv_filename: data.info.file.original_filename,
                     csv_text: csv,
-                    debug_mode: false
+                    debug_mode: CSV_IMPORTER_DEBUG
                 }
                 try {
                     if(importerOpts.debug_mode) {
@@ -212,7 +212,7 @@ function processReport(report) {
 
 function finishScript() {
     delete(data.info)
-    originalConsoleLog(JSON.stringify(data));
+    originalConsoleLog(JSON.stringify({"objects": [] }));
     process.exit(0);
 }
 
@@ -221,6 +221,7 @@ function finishWithError(msg, e) {
     if (e && e.message) {
         msg = msg + ": " + e.message;
     }
+    data.objects = [];
     data.Error = {
         code: "hotfolder-collection-upload-error",
         error: msg,
