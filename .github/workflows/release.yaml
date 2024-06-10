@@ -27,6 +27,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Update submodules recursively
+        run: git submodule update --init --recursive
+
+      - name: Build headless in submodule
+        run: |
+          cd modules/easydb-webfrontend
+          make all
+          make headless
+        shell: bash
+
       - name: Install ncc
         run: npm install -g @vercel/ncc
 
