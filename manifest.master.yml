@@ -1,0 +1,37 @@
+plugin:
+  name: collection-csv-import
+  version: "1"
+  l10n: l10n/collection-csv-import.csv
+  displayname:
+    de-DE: Collection CSV Import
+    en-US: Collection CSV Import
+
+collection_upload:
+  csv_import:
+    config:
+      - name: csv_import
+        parameters:
+          enabled:
+            type: bool
+            default: true
+          import_settings:
+            type: json
+            plugin_type: csv_config
+
+    callbacks:
+      objects:
+        exec:
+          service: "node"
+          commands:
+            - prog: "node"
+              stdin:
+                type: body
+              stdout:
+                type: body
+              args:
+                - type: "value"
+                  value: "%_exec.pluginDir%/server/collection/csv_import.js"
+
+
+
+
