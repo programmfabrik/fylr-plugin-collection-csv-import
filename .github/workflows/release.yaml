@@ -24,6 +24,12 @@ jobs:
       - name: Set zip file env name
         run: echo "ZIP_NAME=${{env.REPOSITORY_NAME}}.zip" >> $GITHUB_ENV
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install ncc
+        run: npm install -g @vercel/ncc
+
       - name: Build and Package
         shell: bash
         run: make zip
