@@ -33,5 +33,5 @@ rundev: build
 clean: ## clean
 	rm -rf $(BUILD_DIR)
 
-zip: build ## build zip file
+zip: all ## build zip file
 	cd build && zip ${ZIP_NAME} -r $(PLUGIN_NAME)/
