@@ -221,7 +221,11 @@ function processReport(report) {
 
 function finishScript() {
     delete(data.info)
-    originalConsoleLog(JSON.stringify({"objects": [] }));
+    outData = { "objects": [] }
+    if(data.upload_log) {
+        outData.upload_log = data.upload_log
+    }
+    originalConsoleLog(JSON.stringify(outData));
     process.exit(0);
 }
 
