@@ -150,7 +150,7 @@ function runImporter(csv) {
     //Start the ez5 app
     ez5.session = new Session();
     ez5.settings = {
-        version: "6.10"
+        version: "6.11"
     };
     ez5.tokenParam = "access_token";
     ez5.session_ready().done( () => {
@@ -233,6 +233,8 @@ function finishWithError(msg, e) {
     delete(data.info);
     if (e && e.message) {
         msg = msg + ": " + e.message;
+    } else if (e) {
+        msg = msg + ": " + JSON.stringify(e)
     }
     data.objects = [];
     data.Error = {
