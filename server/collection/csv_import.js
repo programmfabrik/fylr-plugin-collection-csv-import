@@ -71,6 +71,15 @@ process.stdin.on('data', d => {
 
 
 process.stdin.on('end', () => {
+
+    data = JSON.parse(input);
+
+    if(!data.info["collection_config"]["csv_import"]["enabled"])
+    {
+        // If the csv import is not enabled we finish the script
+        finishScript();
+    }
+
     try {
         if(DEBUG_INPUT)
         {
@@ -79,7 +88,7 @@ process.stdin.on('end', () => {
             data = JSON.parse(input);
             finishScript();
         }
-        data = JSON.parse(input);
+
         global.window.easydb_server_url = data.info.api_url + "/api/v1";
 
         csv_importer_settings = data.info["collection_config"]["csv_import"]["import_settings"]["settings"];
