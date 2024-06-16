@@ -1,6 +1,6 @@
 plugin:
   name: collection-csv-import
-  version: "1"
+  version: "1.0.2"
   l10n: l10n/collection-csv-import.csv
   displayname:
     de-DE: Collection CSV Import

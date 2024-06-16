@@ -2,10 +2,20 @@ const DEBUG_INPUT = false; // Set to true to debug the input and output to a fil
 const CSV_IMPORTER_DEBUG = false; // Set to true to enable the importer debug mode, this will output objects to log instead of importing them
 
 const fs = require('fs');
+const process = require('process');
 const path = require('path');
 const axios = require('axios');
 const jsdom = require('jsdom');
 
+// This allows us to catch uncaught exceptions and finish the script in a way that the frontend can get the error
+// If we let the uncaught exception the script will exit with code 1 and the frontend will not be able to get the error
+// This is important to be able to debug the script on instances where we can't see the console output
+if(!CSV_IMPORTER_DEBUG)
+{
+    process.once('uncaughtException', (err) => {
+        finishWithError("CSV Importer Exited with error", err);
+    });
+}
 
 // Mocks the DOM to be able to require CUI.
 global.window = new jsdom.JSDOM(`<!DOCTYPE html>`, { url: "https://example.com/" }).window;
@@ -33,9 +43,12 @@ global.XMLHttpRequest = XMLHttpRequest = require("xhr2");
 // ez5 outputs a lot of logs, we are going to silence them
 const originalConsoleLog = console.log;
 const originalConsoleInfo = console.info;
+const originalConsoleError = console.error;
 console.log = () => {};
 console.info = () => {};
+console.error = () => {};
 console.timeLog = () => {};
+
 
 const EventPoller = {
     listen: () => {},
@@ -93,12 +106,10 @@ process.stdin.on('end', () => {
 
         csv_importer_settings = data.info["collection_config"]["csv_import"]["import_settings"]["settings"];
         if (!csv_importer_settings) {
-            console.error("No csv_import settings found in the collection config");
-            process.exit(1);
+            finishWithError("No csv_import settings found in the collection config")
         }
     } catch(e) {
-        console.error(`Could not parse input: ${e.message}`, e.stack);
-        process.exit(1);
+        finishWithError("Could not parse input", e);
     }
 
     // Check that we are uploading a csv file
@@ -113,18 +124,18 @@ process.stdin.on('end', () => {
     csvUrl += "?access_token=" + data.info.api_user_access_token
 
     // Get the csv from the server , we use the access token included in info
-    axios.get(csvUrl).then((response) => {
-        // Run the importer
-        runImporter(response.data).done(() => {
-            finishScript();
-        }).fail((error) => {
-            console.error("Could not run the importer", error);
-            process.exit(1);
-        });
-    }).catch((error) => {
-        console.error("Could not get the csv file", error);
-        process.exit(1);
-    });
+    try {
+        axios.get(csvUrl).then((response) => {
+            // Run the importer
+            runImporter(response.data).done(() => {
+                finishScript();
+            }).fail((error) => {
+                throw error;
+            });
+        })
+    } catch(e) {
+        finishWithError("CSV Importer Error", e);
+    }
 });
 
 function runImporter(csv) {
@@ -155,8 +166,7 @@ function runImporter(csv) {
     ez5.tokenParam = "access_token";
     ez5.session_ready().done( () => {
         ez5.session.get(data.info.api_user_access_token).fail( (e) => {
-            console.error("Could not get user session", e);
-            dfr.reject();
+            dfr.reject(new Error("Could not get user session"));
         }).done((response, xhr) => {
             // noinspection JSVoidFunctionReturnValueUsed
             CUI.when([
@@ -230,6 +240,11 @@ function finishScript() {
 }
 
 function finishWithError(msg, e) {
+    let end = () => {
+        originalConsoleLog(JSON.stringify(data));
+        process.exit(0);
+    }
+
     delete(data.info);
     if (e && e.message) {
         msg = msg + ": " + e.message;
@@ -243,6 +258,24 @@ function finishWithError(msg, e) {
         realm: "api",
         statuscode: 400
     }
-    originalConsoleLog(JSON.stringify(data));
-    process.exit(0);
+    try {
+        ez5.api.event({
+            type: "POST",
+            json_data: {
+                event: {
+                    type: "FRONTEND_ERROR",
+                    info: {
+                        error: msg,
+                        stack: e ? e.stack : null
+                    }
+                }
+            }
+        }).done(() => {
+            end();
+        })
+    } catch (e) {
+        end();
+    }
+
+
 }
