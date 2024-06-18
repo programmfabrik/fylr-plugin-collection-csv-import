@@ -16,7 +16,6 @@ if(!CSV_IMPORTER_DEBUG)
         finishWithError("CSV Importer Exited with error", err);
     });
 }
-
 // Mocks the DOM to be able to require CUI.
 global.window = new jsdom.JSDOM(`<!DOCTYPE html>`, { url: "https://example.com/" }).window;
 global.window.Error = () => {
@@ -44,26 +43,57 @@ global.XMLHttpRequest = XMLHttpRequest = require("xhr2");
 const originalConsoleLog = console.log;
 const originalConsoleInfo = console.info;
 const originalConsoleError = console.error;
-console.log = () => {};
-console.info = () => {};
-console.error = () => {};
 console.timeLog = () => {};
+console.info = () => {};
+if(!CSV_IMPORTER_DEBUG)
+{
+    console.log = () => {};
+    console.error = () => {};
+}
 
-
-const EventPoller = {
-    listen: () => {},
-    saveEvent: () => {}
+CUI.Template.loadTemplateFile = () => {
+    return CUI.resolvedPromise();
 };
 
 // Run headless ez5
 const ez5jsPath = path.join(__dirname, '../modules/ez5.js');
 const ez5js = fs.readFileSync(ez5jsPath, 'utf8');
+
 //const ez5js = fs.readFileSync('../modules/easydb-webfrontend/build/web/js/easydb5.js', 'utf8');
 // Ez5 is designed to run in the browser, also was coded to run all classes in global scope, so we need to run it in the global scope
 // for this we are going to use eval, if we require the ez5.js file it will run in the module scope and we will not have access to the classes
 eval(ez5js);
 
+EventPoller = {
+    listen: () => {},
+    saveEvent: () => {}
+};
 
+
+// Mock the eval function to be able to load the scripts in the global scope
+global.__tempEval = []; // Array to store the scripts to be evaluated
+global.tempEvalIndex = -1; // Index to the last script evaluated
+CUI.loadScript = (script) => {
+    // Load the script in the global scope
+    let dfr = new CUI.Deferred();
+    axios.get(script).then((response) => {
+        global.tempEvalIndex += 1;
+        const scriptContent = response.data;
+        global.__tempEval[global.tempEvalIndex] = scriptContent;
+        // This is a hack to be able to evaluate the script in the global scope
+        // If not the plugins will not be able to access the global scope classes from the ez5 evaluated code.
+        eval('eval(global.__tempEval[global.tempEvalIndex])');
+        if(CSV_IMPORTER_DEBUG) console.log("Loaded script: " + script);
+        dfr.resolve();
+    }).catch((error) => {
+        pluginErrors.push({error});
+        dfr.reject();
+    });
+    return dfr.promise();
+};
+
+
+let pluginErrors = [];
 let info = undefined
 let data = undefined
 let csv_importer_settings = undefined
@@ -140,6 +170,8 @@ process.stdin.on('end', () => {
 
 function runImporter(csv) {
     let dfr = new CUI.Deferred();
+
+    // Important ez5 needs the default classes to be set in the ez5 object
     ez5.defaults = {
         class: {
             User: User,
@@ -152,10 +184,23 @@ function runImporter(csv) {
     // Pollyfill some functions that are not available in headless mode
     Localization.prototype.init = () => {};
     Localization.prototype.setLanguage = () => { return CUI.resolvedPromise()};
+    AdminMessage.load = () => { return CUI.resolvedPromise([])};
     ez5.splash.show = () => {};
     ez5.splash.hide = () => {};
-    ez5.rootMenu = {
-        registerApp: () => {}
+
+    // Mock the tray and rootMenu on headless mode
+    ez5.tray = ez5.rootMenu = {
+        registerApp: () => {},
+        registerAppLoader: () => {}
+    }
+
+    // Mock the ez5 error handler to get api and other wrrrors from ez5 code.
+    ez5.error_handler = (xhr = {}) => {
+        error = "Error executing csv importer "
+        if(xhr.response){
+            error += xhr.response.error
+        }
+        throw new Error(error);
     }
 
     //Start the ez5 app
@@ -163,48 +208,65 @@ function runImporter(csv) {
     ez5.settings = {
         version: "6.11"
     };
+
+    // This parameter indicates how the access token is going to be passed to the api on ez5 api classes
     ez5.tokenParam = "access_token";
+
     ez5.session_ready().done( () => {
+        // First of all we get the user session.
         ez5.session.get(data.info.api_user_access_token).fail( (e) => {
             dfr.reject(new Error("Could not get user session"));
         }).done((response, xhr) => {
-            // noinspection JSVoidFunctionReturnValueUsed
-            CUI.when([
-                ez5.schema.load_schema(),
-                (ez5.tagForm = new TagFormSimple()).load(),
-                (ez5.pools = new PoolManagerList()).loadList(),
-                (ez5.objecttypes = new Objecttypes()).load(),
-            ]).done(() => {
-                importer = new HeadlessObjecttypeCSVImporter();
-                collectionData = data.info.collection.collection;
-                importerOpts = {
-                    settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
-                    collection: collectionData._id,
-                    collection_objecttype: collectionData.create_object.objecttype,
-                    csv_filename: data.info.file.original_filename,
-                    csv_text: csv,
-                    debug_mode: CSV_IMPORTER_DEBUG
-                }
-                try {
-                    if(importerOpts.debug_mode) {
-                        // For being able to debug the importer we need to restore the console functions
-                        console.log = originalConsoleLog;
-                        console.info = originalConsoleInfo;
-                    }
-                    importer.startHeadlessImport(importerOpts).done((report) => {
-                        // We imported the csv successfully
-                        if(!CUI.util.isEmpty(report)) {
-                            processReport(report);
+            // We need to load the plugins to be able to run the importer
+            (ez5.pluginManager = new PluginManager()).loadPluginInfo().done( () => {
+                // We cannot use the plugin bundle, if one error occour in one of the plugins then all the bundle will fail
+                // So we force ez5 to load the plugins one by one removing the bundle from the info.
+                delete ez5.pluginManager.info.bundle;
+                // We mocked the loadScript function to load the scripts in the global scope above on this file.
+                // We continue also when there are errors loading the plugins.
+                ez5.pluginManager.loadPlugins().always( () => {
+                    // Init all the base classes for the correct execution of the importer
+                    basePromises = [
+                        ez5.schema.load_schema(),
+                        (ez5.tagForm = new TagFormSimple()).load(),
+                        (ez5.pools = new PoolManagerList()).loadList(),
+                        (ez5.objecttypes = new Objecttypes()).load()
+                    ];
+                    CUI.when(basePromises).done(() => {
+                        // Now we have a running ez5 app and we can run the importer class.
+                        importer = new HeadlessObjecttypeCSVImporter();
+                        collectionData = data.info.collection.collection;
+                        importerOpts = {
+                            settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
+                            collection: collectionData._id,
+                            collection_objecttype: collectionData.create_object.objecttype,
+                            csv_filename: data.info.file.original_filename,
+                            csv_text: csv,
+                            debug_mode: CSV_IMPORTER_DEBUG
                         }
-                        dfr.resolve();
-                    }).fail((e) => {
-                        finishWithError("CSV Importer failed", e);
+                        try {
+                            if(importerOpts.debug_mode) {
+                                // For being able to debug the importer we need to restore the console functions
+                                console.log = originalConsoleLog;
+                                console.info = originalConsoleInfo;
+                            }
+                            importer.startHeadlessImport(importerOpts).done((report) => {
+                                // We imported the csv successfully
+                                if(!CUI.util.isEmpty(report)) {
+                                    processReport(report);
+                                }
+                                dfr.resolve();
+                            }).fail((e) => {
+                                finishWithError("CSV Importer failed", e);
+                            });
+                        }
+                        catch(e) {
+                            finishWithError("CSV Importer failed", e);
+                        }
                     });
-                }
-                catch(e) {
-                    finishWithError("CSV Importer failed", e);
-                }
+                });
             });
+
         });
     });
 
@@ -244,12 +306,24 @@ function finishWithError(msg, e) {
         originalConsoleLog(JSON.stringify(data));
         process.exit(0);
     }
-
     delete(data.info);
     if (e && e.message) {
         msg = msg + ": " + e.message;
     } else if (e) {
         msg = msg + ": " + JSON.stringify(e)
+    }
+
+    let plugin_errors = null;
+    if( pluginErrors.length > 0) {
+        msg = msg + " there were plugin errors. Check the logs for more information.";
+        plugin_errors = [];
+        for (let i = 0; i < pluginErrors.length; i++) {
+            plugin_errors.push({
+                error: pluginErrors[i].error.message,
+                stack: pluginErrors[i].error.stack
+            });
+        }
+        debugger;
     }
     data.objects = [];
     data.Error = {
@@ -266,7 +340,8 @@ function finishWithError(msg, e) {
                     type: "FRONTEND_ERROR",
                     info: {
                         error: msg,
-                        stack: e ? e.stack : null
+                        stack: e ? e.stack : null,
+                        plugins_errors: plugin_errors
                     }
                 }
             }
