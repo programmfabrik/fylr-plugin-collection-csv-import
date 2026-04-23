@@ -29,6 +29,7 @@ build: clean buildinfojson ## Build the js files
 	cp -r modules/easydb-webfrontend/build/headless $(BUILD_DIR)/$(PLUGIN_NAME)/server/modules
 	cp -r manifest.master.yml $(BUILD_DIR)/$(PLUGIN_NAME)/manifest.yml
 	cp $(BUILD_INFO) $(BUILD_DIR)/$(PLUGIN_NAME)
+	mkdir -p $(BUILD_DIR)/$(PLUGIN_NAME)/webfrontend
 	cp README.md $(BUILD_DIR)/$(PLUGIN_NAME)/webfrontend
 
 rundev: build

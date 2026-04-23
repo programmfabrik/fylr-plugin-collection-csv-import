@@ -5,7 +5,7 @@ Server-side plugin that enables CSV import functionality through Fylr's hotfolde
 ## Features
 
 - **Hotfolder Integration**: Automatically triggers CSV import when files are uploaded to configured collections
-- **Daily Subcollections**: Imported objects are organized into daily subcollections (format: `DD-MM-YYYY`) under the hotfolder collection
+- **Daily Subcollections (optional)**: Imported objects can be organized into daily subcollections (format: `DD-MM-YYYY`) under the hotfolder collection, controlled by the `add_to_subcollection` parameter
 - **Headless CSV Importer**: Runs the ez5 CSV Importer in headless mode on the server
 - **Configurable Import Settings**: Uses the same CSV import configuration as the webfrontend importer
 - **Debug Mode** (Only for development): Optional file logging to `/tmp/csv_import_debug.log` for troubleshooting
@@ -35,19 +35,32 @@ Server-side plugin that enables CSV import functionality through Fylr's hotfolde
 6.	Configure the CSV import as you would normally do in the frontend. See the CSV Importer documentation for more information.
 7.	Once you finish the configuration, you can click Prepare. If there is any issue, the system will notify you so you can fix it.
 8.	If everything is correct, you can confirm the configuration and you will exit the CSV configurator.
-9.	You can now save the collection configuration. The collection will then be ready to receive CSVs and start importing.
+9.	Decide whether imported objects should be attached to a daily subcollection using the **Add to subcollection** toggle (see [Parameters](#parameters)).
+10.	You can now save the collection configuration. The collection will then be ready to receive CSVs and start importing.
+
+### Parameters
+
+The plugin exposes the following parameters on the hotfolder collection (`collection_upload.csv_import`):
+
+| Parameter              | Type | Default | Description                                                                                                                                                                                                                                                                                |
+|------------------------|------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`              | bool | `true`  | Enables the CSV import callback for the collection.                                                                                                                                                                                                                                        |
+| `add_to_subcollection` | bool | `true`  | When enabled, a daily subcollection (`DD-MM-YYYY`) is created/reused under the hotfolder collection and imported primary-objecttype objects are linked to it. When disabled, objects are created in the instance without being linked to any collection. Linked/secondary objects (created through destination fields) are never added to the subcollection regardless of this flag. |
+| `import_settings`      | json | —       | CSV importer configuration produced by the configurator.                                                                                                                                                                                                                                   |
+
 ## How It Works
 
 1. A CSV file is uploaded to a hotfolder collection
 2. Fylr triggers the plugin's `collection_upload` callback
 3. The plugin:
    - Validates the file is a CSV
-   - Creates or finds a daily subcollection (e.g., `02-12-2025`)
+   - If `add_to_subcollection` is enabled, creates or finds a daily subcollection (e.g., `02-12-2025`) under the hotfolder collection
    - Initializes the fylr environment in headless mode
    - Runs the CSV Importer with the configured settings
-   - Imports objects into the daily subcollection
+   - If a subcollection was resolved, imports primary-objecttype objects into it; otherwise objects are created without being linked to any collection
 4. Import results are logged and returned to Fylr
-    5.	The CSV importer can also update existing objects; these will not be added to the daily collection if they were not already in it beforehand.
+5.	The CSV importer can also update existing objects; these will not be added to the daily subcollection if they were not already in it beforehand.
+6.	Linked/secondary objects produced by the import (through destination fields such as linked objects) are always created without a collection link, independently of the `add_to_subcollection` flag.
 
 
 ## Events

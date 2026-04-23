@@ -556,21 +556,24 @@ function runImporter(csv) {
                         importer = new HeadlessObjecttypeCSVImporter();
                         collectionData = data.info.collection.collection;
 
-                        // Get or create the daily subcollection for imports
-                        getOrCreateDailySubcollection(collectionData._id).done((subcollectionId) => {
-                            logToFile('Using subcollection ID for import:', subcollectionId);
+                        // The add_to_subcollection flag controls whether imported primary-objecttype
+                        // objects are linked to a daily subcollection. When disabled, objects are
+                        // created in the instance without being linked to any collection.
+                        const addToSubcollection = data.info.collection_config.csv_import.add_to_subcollection !== false;
+                        logToFile('add_to_subcollection flag:', addToSubcollection);
 
+                        const runImport = (subcollectionId) => {
                             importerOpts = {
                                 settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
-                                collection:subcollectionId, // WWe use the subcollection for the import
-                                collection_objecttype: collectionData.create_object.objecttype,
                                 csv_filename: data.info.file.original_filename,
                                 csv_text: csv,
                                 debug_mode: CSV_IMPORTER_DEBUG
                             }
+                            if (subcollectionId) {
+                                importerOpts.collection = subcollectionId;
+                            }
                             logToFile('Importer options:', {
-                                collection: importerOpts.collection,
-                                collection_objecttype: importerOpts.collection_objecttype,
+                                collection: importerOpts.collection || null,
                                 csv_filename: importerOpts.csv_filename,
                                 csv_text_length: importerOpts.csv_text.length,
                                 debug_mode: importerOpts.debug_mode
@@ -584,8 +587,8 @@ function runImporter(csv) {
                                 logToFile('Starting headless import...');
                                 logPluginEvent(EVENT_TYPE_INFO, Object.assign({
                                     stage: "import_started",
-                                    objecttype: importerOpts.collection_objecttype,
-                                    subcollection_id: importerOpts.collection,
+                                    subcollection_id: importerOpts.collection || null,
+                                    add_to_subcollection: addToSubcollection,
                                     csv_size: importerOpts.csv_text.length
                                 }, buildEventContext()));
                                 importer.startHeadlessImport(importerOpts).done((report) => {
@@ -609,10 +612,20 @@ function runImporter(csv) {
                                 logToFile('Exception during import:', e);
                                 finishWithError("CSV Importer failed", e);
                             }
-                        }).fail((e) => {
-                            logToFile('ERROR getting/creating daily subcollection:', e);
-                            finishWithError("Failed to get or create daily subcollection", e);
-                        });
+                        };
+
+                        if (addToSubcollection) {
+                            getOrCreateDailySubcollection(collectionData._id).done((subcollectionId) => {
+                                logToFile('Using subcollection ID for import:', subcollectionId);
+                                runImport(subcollectionId);
+                            }).fail((e) => {
+                                logToFile('ERROR getting/creating daily subcollection:', e);
+                                finishWithError("Failed to get or create daily subcollection", e);
+                            });
+                        } else {
+                            logToFile('Skipping subcollection creation (add_to_subcollection disabled)');
+                            runImport(null);
+                        }
                     }).fail((e) => {
                         logToFile('ERROR loading base promises:', e);
                         finishWithError("Failed to load base ez5 components", e);

@@ -14,6 +14,11 @@ collection_upload:
           enabled:
             type: bool
             default: true
+            position: 0
+          add_to_subcollection:
+            type: bool
+            default: true
+            position: 1
           import_settings:
             type: json
             plugin_type: csv_config
