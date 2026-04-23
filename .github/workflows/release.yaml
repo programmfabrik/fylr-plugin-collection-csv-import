@@ -27,7 +27,7 @@ jobs:
         shell: bash
 
       - name: Set zip file env name
-        run:
+        run: |
           echo "ZIP_NAME=${{env.REPOSITORY_NAME}}.zip" >> $GITHUB_ENV
           echo "ZIP_HASH_NAME=${{env.REPOSITORY_NAME}}-618be833-e568-4198-9132-29a90eb3803d-latest.zip" >> $GITHUB_ENV
 
