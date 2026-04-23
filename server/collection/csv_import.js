@@ -562,12 +562,24 @@ function runImporter(csv) {
                         const addToSubcollection = data.info.collection_config.csv_import.add_to_subcollection !== false;
                         logToFile('add_to_subcollection flag:', addToSubcollection);
 
+                        // import_mode controls which row operations the headless importer will run:
+                        //   "both" (default) — run both insert and update actions (current behavior)
+                        //   "insert_only"    — only insert new objects, skip updates
+                        //   "update_only"    — only update existing objects, skip inserts
+                        const VALID_IMPORT_MODES = ["both", "insert_only", "update_only"];
+                        let importMode = data.info.collection_config.csv_import.import_mode;
+                        if (!VALID_IMPORT_MODES.includes(importMode)) {
+                            importMode = "both";
+                        }
+                        logToFile('import_mode:', importMode);
+
                         const runImport = (subcollectionId) => {
                             importerOpts = {
                                 settings: data.info["collection_config"]["csv_import"]["import_settings"]["settings"],
                                 csv_filename: data.info.file.original_filename,
                                 csv_text: csv,
-                                debug_mode: CSV_IMPORTER_DEBUG
+                                debug_mode: CSV_IMPORTER_DEBUG,
+                                import_mode: importMode
                             }
                             if (subcollectionId) {
                                 importerOpts.collection = subcollectionId;
@@ -576,7 +588,8 @@ function runImporter(csv) {
                                 collection: importerOpts.collection || null,
                                 csv_filename: importerOpts.csv_filename,
                                 csv_text_length: importerOpts.csv_text.length,
-                                debug_mode: importerOpts.debug_mode
+                                debug_mode: importerOpts.debug_mode,
+                                import_mode: importerOpts.import_mode
                             });
                             try {
                                 if(importerOpts.debug_mode) {
@@ -589,6 +602,7 @@ function runImporter(csv) {
                                     stage: "import_started",
                                     subcollection_id: importerOpts.collection || null,
                                     add_to_subcollection: addToSubcollection,
+                                    import_mode: importMode,
                                     csv_size: importerOpts.csv_text.length
                                 }, buildEventContext()));
                                 importer.startHeadlessImport(importerOpts).done((report) => {

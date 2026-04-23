@@ -19,10 +19,18 @@ collection_upload:
             type: bool
             default: true
             position: 1
+          import_mode:
+            type: select
+            options:
+              - both
+              - insert_only
+              - update_only
+            default: both
+            position: 2
           import_settings:
             type: json
             plugin_type: csv_config
-            position: 2
+            position: 3
 
     callbacks:
       objects:
