@@ -22,6 +22,7 @@ collection_upload:
           import_settings:
             type: json
             plugin_type: csv_config
+            position: 2
 
     callbacks:
       objects:
