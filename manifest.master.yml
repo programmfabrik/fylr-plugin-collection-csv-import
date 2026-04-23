@@ -32,6 +32,10 @@ collection_upload:
                 - type: "value"
                   value: "%_exec.pluginDir%/server/collection/csv_import.js"
 
-
-
-
+custom_events:
+  COLLECTION_CSV_IMPORT_INFO:
+    user: true
+  COLLECTION_CSV_IMPORT_WARNING:
+    user: true
+  COLLECTION_CSV_IMPORT_ERROR:
+    user: true

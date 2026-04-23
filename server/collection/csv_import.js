@@ -1,6 +1,11 @@
 const DEBUG_INPUT = false; // Set to true to debug the input and output to a file on /tmp/post-in
 const CSV_IMPORTER_DEBUG = false; // Set to true to enable the importer debug mode, this will output objects to log instead of importing them
 
+// Custom event types declared in manifest.master.yml
+const EVENT_TYPE_INFO = "COLLECTION_CSV_IMPORT_INFO";
+const EVENT_TYPE_WARNING = "COLLECTION_CSV_IMPORT_WARNING";
+const EVENT_TYPE_ERROR = "COLLECTION_CSV_IMPORT_ERROR";
+
 const fs = require('fs');
 const process = require('process');
 const path = require('path');
@@ -52,6 +57,47 @@ function closeFileLogging() {
 
 // Initialize file logging
 initFileLogging();
+
+// Posts a custom event to the fylr API using axios directly, so it works even
+// if ez5 is not initialized yet. Never throws.
+function logPluginEvent(type, info) {
+    try {
+        if (!data || !data.info || !data.info.api_url || !data.info.api_user_access_token) {
+            logToFile('logPluginEvent: skipped, API info not available', { type });
+            return Promise.resolve();
+        }
+        const url = data.info.api_url + "/api/v1/event?access_token=" + data.info.api_user_access_token;
+        const payload = {
+            _basetype: "event",
+            event: {
+                type: type,
+                info: info || {}
+            }
+        };
+        logToFile('logPluginEvent: posting', { type, info });
+        return axios.post(url, payload, { timeout: 5000 }).catch((err) => {
+            logToFile('logPluginEvent: post failed', err && err.message);
+        });
+    } catch (e) {
+        logToFile('logPluginEvent: exception', e && e.message);
+        return Promise.resolve();
+    }
+}
+
+function buildEventContext() {
+    const ctx = {};
+    if (!data || !data.info) return ctx;
+    if (data.info.file) {
+        ctx.file = {
+            filename: data.info.file.original_filename,
+            extension: data.info.file.extension
+        };
+    }
+    if (data.info.collection && data.info.collection.collection) {
+        ctx.collection_id = data.info.collection.collection._id;
+    }
+    return ctx;
+}
 
 // This allows us to catch uncaught exceptions and finish the script in a way that the frontend can get the error
 // If we let the uncaught exception the script will exit with code 1 and the frontend will not be able to get the error
@@ -189,6 +235,8 @@ process.stdin.on('end', () => {
         return;
     }
 
+    logPluginEvent(EVENT_TYPE_INFO, Object.assign({ stage: "triggered" }, buildEventContext()));
+
     try {
         if(DEBUG_INPUT)
         {
@@ -219,6 +267,10 @@ process.stdin.on('end', () => {
     // Check that we are uploading a csv file
     if (data.info.file.extension !== "csv") {
         logToFile('File is not CSV (extension: ' + data.info.file.extension + '), finishing script');
+        logPluginEvent(EVENT_TYPE_INFO, Object.assign({
+            stage: "skipped",
+            reason: "not_a_csv_file"
+        }, buildEventContext()));
         finishScript();
         return;
     }
@@ -428,10 +480,27 @@ function runImporter(csv) {
     // Mock the ez5 error handler to get api and other wrrrors from ez5 code.
     ez5.error_handler = (xhr = {}) => {
         error = "Error executing csv importer "
-        if(xhr.response){
-            error += xhr.response.error
+        let apiError = null;
+        let statusCode = null;
+        try {
+            statusCode = xhr.status;
+            if (xhr.response) {
+                apiError = xhr.response.error || xhr.response;
+                error += (typeof apiError === "string" ? apiError : JSON.stringify(apiError));
+            } else if (typeof xhr.responseText === "string" && xhr.responseText.length > 0) {
+                apiError = xhr.responseText;
+                error += xhr.responseText;
+            }
+        } catch (e) {
+            logToFile('ez5.error_handler: failed to extract xhr details', e && e.message);
         }
         logToFile('ez5.error_handler called:', error);
+        logPluginEvent(EVENT_TYPE_ERROR, Object.assign({
+            stage: "ez5_api",
+            message: error,
+            status: statusCode,
+            api_error: apiError
+        }, buildEventContext()));
         throw new Error(error);
     }
 
@@ -465,6 +534,13 @@ function runImporter(csv) {
                     logToFile('Plugins loaded (with or without errors)');
                     if (pluginErrors.length > 0) {
                         logToFile('Plugin errors detected:', pluginErrors);
+                        logPluginEvent(EVENT_TYPE_WARNING, Object.assign({
+                            stage: "plugin_load",
+                            plugin_errors: pluginErrors.map((p) => ({
+                                error: p.error && p.error.message,
+                                stack: p.error && p.error.stack
+                            }))
+                        }, buildEventContext()));
                     }
                     // Init all the base classes for the correct execution of the importer
                     basePromises = [
@@ -506,6 +582,12 @@ function runImporter(csv) {
                                     console.info = originalConsoleInfo;
                                 }
                                 logToFile('Starting headless import...');
+                                logPluginEvent(EVENT_TYPE_INFO, Object.assign({
+                                    stage: "import_started",
+                                    objecttype: importerOpts.collection_objecttype,
+                                    subcollection_id: importerOpts.collection,
+                                    csv_size: importerOpts.csv_text.length
+                                }, buildEventContext()));
                                 importer.startHeadlessImport(importerOpts).done((report) => {
                                     logToFile('Import completed successfully');
                                     // We imported the csv successfully
@@ -513,6 +595,10 @@ function runImporter(csv) {
                                         logToFile('Processing report:', report);
                                         processReport(report);
                                     }
+                                    logPluginEvent(EVENT_TYPE_INFO, Object.assign({
+                                        stage: "import_completed",
+                                        counts: summarizeReport(report)
+                                    }, buildEventContext()));
                                     dfr.resolve();
                                 }).fail((e) => {
                                     logToFile('Import failed:', e);
@@ -566,6 +652,20 @@ function processReport(report) {
     logToFile('Report processed, upload_log entries:', data.upload_log.length);
 }
 
+function summarizeReport(report) {
+    const summary = { insert: 0, update: 0, by_objecttype: {} };
+    if (!report) return summary;
+    for (const operation in report) {
+        for (const objecttype in report[operation]) {
+            const count = (report[operation][objecttype] || []).length;
+            summary[operation] = (summary[operation] || 0) + count;
+            summary.by_objecttype[objecttype] ??= {};
+            summary.by_objecttype[objecttype][operation] = count;
+        }
+    }
+    return summary;
+}
+
 function finishScript() {
     logToFile('finishScript() called - SUCCESS');
     delete(data.info)
@@ -595,6 +695,8 @@ function finishWithError(msg, e) {
         originalConsoleLog(JSON.stringify(data));
         process.exit(0);
     }
+    // buildEventContext() reads from data.info, build it before the delete below
+    const eventContext = buildEventContext();
     delete(data.info);
     if (e && e.message) {
         msg = msg + ": " + e.message;
@@ -623,28 +725,16 @@ function finishWithError(msg, e) {
         statuscode: 400
     }
     logToFile('Final error object:', data.Error);
-    try {
-        ez5.api.event({
-            type: "POST",
-            json_data: {
-                event: {
-                    type: "FRONTEND_ERROR",
-                    info: {
-                        error: msg,
-                        stack: e ? e.stack : null,
-                        plugins_errors: plugin_errors
-                    }
-                }
-            }
-        }).done(() => {
-            logToFile('Error event posted successfully');
-            end();
-        }).fail((eventError) => {
-            logToFile('Failed to post error event:', eventError);
-            end();
-        });
-    } catch (e) {
-        logToFile('Exception while posting error event:', e);
+    Promise.resolve(logPluginEvent(EVENT_TYPE_ERROR, Object.assign({
+        stage: "finish_with_error",
+        error: msg,
+        stack: e ? e.stack : null,
+        plugin_errors: plugin_errors
+    }, eventContext))).then(() => {
+        logToFile('Error event posted successfully');
         end();
-    }
+    }).catch((eventError) => {
+        logToFile('Failed to post error event:', eventError);
+        end();
+    });
 }
