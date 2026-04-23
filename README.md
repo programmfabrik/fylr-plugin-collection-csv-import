@@ -50,6 +50,18 @@ Server-side plugin that enables CSV import functionality through Fylr's hotfolde
     5.	The CSV importer can also update existing objects; these will not be added to the daily collection if they were not already in it beforehand.
 
 
+## Events
+
+The plugin declares three custom event types (see `custom_events` in `manifest.master.yml`) and posts entries to the fylr event log during each run. This makes it possible to debug failures from the fylr admin UI without needing access to the node logs.
+
+| Type                              | When it is emitted                                                                 |
+|-----------------------------------|-------------------------------------------------------------------------------------|
+| `COLLECTION_CSV_IMPORT_INFO`      | Plugin triggered, non-CSV file skipped, import started, import completed (with counts) |
+| `COLLECTION_CSV_IMPORT_WARNING`   | Non-fatal issues, e.g. some frontend plugins failed to load                         |
+| `COLLECTION_CSV_IMPORT_ERROR`     | Any failure that aborts the import (API errors, importer failures, uncaught exceptions) |
+
+Every event includes a `stage` field and a context block with the uploaded file and collection id, so entries can be correlated per run.
+
 ## Debug Mode ONLY FOR DEVELOPMENT
 
 To enable debug logging, set `CSV_IMPORTER_DEBUG = true` in `server/collection/csv_import.js`. This will:
