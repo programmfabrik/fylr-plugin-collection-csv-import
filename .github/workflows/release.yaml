@@ -49,7 +49,7 @@ jobs:
 
       - name: Build and Package
         shell: bash
-        run:
+        run: |
           export RELEASE_TAG=${{ steps.get_version.outputs.VERSION }}
           make zip
 
