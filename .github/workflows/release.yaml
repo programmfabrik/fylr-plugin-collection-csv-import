@@ -27,7 +27,9 @@ jobs:
         shell: bash
 
       - name: Set zip file env name
-        run: echo "ZIP_NAME=${{env.REPOSITORY_NAME}}.zip" >> $GITHUB_ENV
+        run:
+          echo "ZIP_NAME=${{env.REPOSITORY_NAME}}.zip" >> $GITHUB_ENV
+          echo "ZIP_HASH_NAME=${{env.REPOSITORY_NAME}}-618be833-e568-4198-9132-29a90eb3803d-latest.zip" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: npm ci
@@ -47,7 +49,9 @@ jobs:
 
       - name: Build and Package
         shell: bash
-        run: make zip
+        run:
+          export RELEASE_TAG=${{ steps.get_version.outputs.VERSION }}
+          make zip
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -58,3 +62,30 @@ jobs:
           files: |
             build/${{ env.ZIP_NAME }}
             README.md
+
+      - name: Prepare Github Pages upload
+        shell: bash
+        run: |
+          mkdir -p public
+          cp build/${{ env.ZIP_NAME }} public/${{ env.ZIP_HASH_NAME }}
+
+      - name: Upload to Github Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+  deploy:
+    if: "!github.event.release.prerelease"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
