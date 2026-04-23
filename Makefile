@@ -1,6 +1,7 @@
 PLUGIN_NAME = collection-csv-import
 ZIP_NAME ?= $(PLUGIN_NAME).zip
 BUILD_DIR = build
+BUILD_INFO = build-info.json
 
 # config for Google CSV spreadsheet
 L10N_DIR = $(BUILD_DIR)/$(PLUGIN_NAME)/l10n
@@ -8,6 +9,7 @@ L10N = $(L10N_DIR)/$(PLUGIN_NAME).csv
 GKEY = 1Z3UPJ6XqLBp-P8SUf-ewq4osNJ3iZWKJB83tc6Wrfn0
 GID_LOCA = 2098969173
 GOOGLE_URL = https://docs.google.com/spreadsheets/u/1/d/$(GKEY)/export?format=csv&gid=
+
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -18,7 +20,7 @@ google-csv: ## get loca CSV from google
 	mkdir -p $(L10N_DIR)
 	curl --silent -L -o - "$(GOOGLE_URL)$(GID_LOCA)" | tr -d "\r" > $(L10N)
 
-build: clean ## Build the js files
+build: clean buildinfojson ## Build the js files
 	npm ci
 	mkdir -p $(BUILD_DIR)/$(PLUGIN_NAME)
 	mkdir -p $(BUILD_DIR)/$(PLUGIN_NAME)/server/collection
@@ -26,6 +28,8 @@ build: clean ## Build the js files
 	mv build/collection-csv-import/server/collection/index.js build/collection-csv-import/server/collection/csv_import.js
 	cp -r modules/easydb-webfrontend/build/headless $(BUILD_DIR)/$(PLUGIN_NAME)/server/modules
 	cp -r manifest.master.yml $(BUILD_DIR)/$(PLUGIN_NAME)/manifest.yml
+	cp $(BUILD_INFO) $(BUILD_DIR)/$(PLUGIN_NAME)
+	cp README.md $(BUILD_DIR)/$(PLUGIN_NAME)/webfrontend
 
 rundev: build
 	(cd dev; node server.js)
@@ -35,3 +39,17 @@ clean: ## clean
 
 zip: all ## build zip file
 	cd build && zip ${ZIP_NAME} -r $(PLUGIN_NAME)/
+
+buildinfojson:
+	repo=`git remote get-url origin | sed -e 's/\.git$$//' -e 's#.*[/\\]##'` ;\
+	rev=`git show --no-patch --format=%H` ;\
+	lastchanged=`git show --no-patch --format=%ad --date=format:%Y-%m-%dT%T%z` ;\
+	builddate=`date +"%Y-%m-%dT%T%z"` ;\
+	release=$(if $(strip $(RELEASE_TAG)),'"$(RELEASE_TAG)"','null') ;\
+	echo '{' > ${BUILD_INFO} ;\
+	echo '  "repository": "'$$repo'",' >> ${BUILD_INFO} ;\
+	echo '  "rev": "'$$rev'",' >> ${BUILD_INFO} ;\
+	echo '  "release": '$$release',' >> ${BUILD_INFO} ;\
+	echo '  "lastchanged": "'$$lastchanged'",' >> ${BUILD_INFO} ;\
+	echo '  "builddate": "'$$builddate'"' >> ${BUILD_INFO} ;\
+	echo '}' >> ${BUILD_INFO}
