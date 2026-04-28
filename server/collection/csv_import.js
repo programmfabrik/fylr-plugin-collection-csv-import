@@ -11,6 +11,10 @@ const EVENT_TYPE_ERROR = "COLLECTION_CSV_IMPORT_ERROR";
 // with a truncated JSON response and no event emitted.
 const IMPORT_WATCHDOG_MS = 5 * 60 * 1000;
 
+// Appended to every finishWithError message so the user knows where to find
+// the full stack/context (which we always emit as a plugin event).
+const EVENT_HINT = "For more details check the event from this plugin in the event manager.";
+
 const fs = require('fs');
 const process = require('process');
 const path = require('path');
@@ -94,6 +98,7 @@ function logPluginEvent(type, info) {
         if (!cachedApiUrl || !cachedAccessToken) return Promise.resolve();
         const url = cachedApiUrl + "/api/v1/event?access_token=" + cachedAccessToken;
         const payload = { _basetype: "event", event: { type: type, info: info || {} } };
+        logToFile('logPluginEvent: posting event', payload);
         return axios.post(url, payload, { timeout: 5000 }).catch((err) => {
             logToFile('logPluginEvent: post failed', err && err.message);
         });
@@ -107,11 +112,11 @@ function logPluginEvent(type, info) {
 // off the in-flight error event POST.
 if (!CSV_IMPORTER_DEBUG) {
     process.on('uncaughtException', (err) => {
-        finishWithError("CSV Importer uncaught exception", err);
+        finishWithError("CSV Importer crashed with an uncaught exception", err);
     });
     process.on('unhandledRejection', (reason) => {
         const err = reason instanceof Error ? reason : new Error(String(reason));
-        finishWithError("CSV Importer unhandled promise rejection", err);
+        finishWithError("CSV Importer crashed with an unhandled promise rejection", err);
     });
 }
 
@@ -223,16 +228,17 @@ process.stdin.on('data', d => {
     try {
         input += d.toString();
     } catch (e) {
-        finishWithError("Could not read input into string", e);
+        finishWithError("Could not read plugin input from stdin", e);
     }
 });
 
 process.stdin.on('end', () => {
+    logToFile("Received input", input);
     try {
         data = JSON.parse(input);
         cacheEventDataFromInput();
     } catch (e) {
-        finishWithError("Could not parse input JSON", e);
+        finishWithError("Could not parse plugin input as JSON", e);
         return;
     }
 
@@ -243,6 +249,7 @@ process.stdin.on('end', () => {
 
     logPluginEvent(EVENT_TYPE_INFO, Object.assign({ stage: "triggered" }, buildEventContext()));
 
+
     try {
         if (DEBUG_INPUT) {
             fs.writeFileSync('/tmp/post-in', input);
@@ -252,11 +259,11 @@ process.stdin.on('end', () => {
         global.window.easydb_server_url = data.info.api_url + "/api/v1";
         csv_importer_settings = data.info["collection_config"]["csv_import"]["import_settings"]["settings"];
         if (!csv_importer_settings) {
-            finishWithError("No csv_import settings found in the collection config");
+            finishWithError("Collection config is missing the csv_import.import_settings.settings block");
             return;
         }
     } catch (e) {
-        finishWithError("Could not parse input", e);
+        finishWithError("Could not extract csv_import settings from the collection config", e);
         return;
     }
 
@@ -270,23 +277,24 @@ process.stdin.on('end', () => {
 
     let csvUrl = data.info.file.versions.original.url;
     if (!csvUrl) {
-        finishWithError("No csv file url found in the input data");
+        finishWithError("No CSV file URL found in the uploaded file metadata");
         return;
     }
     csvUrl += "?access_token=" + data.info.api_user_access_token;
 
     try {
         axios.get(csvUrl).then((response) => {
+            logToFile("Fetched CSV file, starting importer", response.data);
             runImporter(response.data).done(() => {
                 finishScript();
             }).fail((error) => {
-                finishWithError("CSV Importer failed", error);
+                finishWithError("CSV Importer pipeline failed during execution", error);
             });
         }).catch((error) => {
-            finishWithError("Error fetching CSV file", error);
+            finishWithError("Could not download the CSV file from the API", error);
         });
     } catch (e) {
-        finishWithError("CSV Importer Error", e);
+        finishWithError("CSV Importer crashed before starting the import", e);
     }
 });
 
@@ -369,7 +377,7 @@ function runImporter(csv) {
     let dfr = new CUI.Deferred();
 
     importWatchdogId = setTimeout(() => {
-        finishWithError("CSV Importer watchdog timeout after " + (IMPORT_WATCHDOG_MS / 1000) + "s");
+        finishWithError("CSV Importer aborted by watchdog after " + (IMPORT_WATCHDOG_MS / 1000) + "s without completing");
     }, IMPORT_WATCHDOG_MS);
 
     ez5.defaults = {
@@ -418,8 +426,9 @@ function runImporter(csv) {
     ez5.tokenParam = "access_token";
 
     ez5.session_ready().done(() => {
+        logToFile("Session ready, fetching user session");
         ez5.session.get(data.info.api_user_access_token).fail((e) => {
-            finishWithError("Could not get user session", e);
+            finishWithError("Could not authenticate the API user session for the importer", e);
         }).done(() => {
             (ez5.pluginManager = new PluginManager()).loadPluginInfo().done(() => {
                 delete ez5.pluginManager.info.bundle;
@@ -469,6 +478,7 @@ function runImporter(csv) {
                                     import_mode: importMode,
                                     csv_size: importerOpts.csv_text.length
                                 }, buildEventContext()));
+                                logToFile("Starting import with options", importerOpts);
                                 importer.startHeadlessImport(importerOpts).done((report) => {
                                     if (!CUI.util.isEmpty(report)) processReport(report);
                                     logPluginEvent(EVENT_TYPE_INFO, Object.assign({
@@ -477,10 +487,10 @@ function runImporter(csv) {
                                     }, buildEventContext()));
                                     dfr.resolve();
                                 }).fail((e) => {
-                                    finishWithError("CSV Importer failed", e);
+                                    finishWithError("CSV import run was rejected by the importer", e);
                                 });
                             } catch (e) {
-                                finishWithError("CSV Importer failed", e);
+                                finishWithError("CSV import run threw a synchronous error while starting", e);
                             }
                         };
 
@@ -488,21 +498,21 @@ function runImporter(csv) {
                             getOrCreateDailySubcollection(collectionData._id).done((subcollectionId) => {
                                 runImport(subcollectionId);
                             }).fail((e) => {
-                                finishWithError("Failed to get or create daily subcollection", e);
+                                finishWithError("Failed to get or create the daily subcollection for the import", e);
                             });
                         } else {
                             runImport(null);
                         }
                     }).fail((e) => {
-                        finishWithError("Failed to load base ez5 components", e);
+                        finishWithError("Failed to load ez5 base components (schema, objecttypes, pools, tagforms)", e);
                     });
                 });
             }).fail((e) => {
-                finishWithError("Failed to load plugin info", e);
+                finishWithError("Failed to load the fylr plugin manager info", e);
             });
         });
     }).fail((e) => {
-        finishWithError("ez5 session not ready", e);
+        finishWithError("ez5 session could not be initialized", e);
     });
 
     return dfr.promise();
@@ -569,43 +579,115 @@ function finishScript() {
     writeResponseAndExit(outData);
 }
 
+// Extract a human-readable message from anything that may land in a .fail/.catch
+// handler: native Error, string, plain object, or xhr-like objects coming from
+// ez5/CUI api calls (with responseJSON/response/responseText/status). Falls back
+// to a circular-safe JSON.stringify so this never throws.
+function formatError(e) {
+    if (e === null || e === undefined) return "";
+    if (typeof e === "string") return e;
+    if (e instanceof Error) return e.message || e.toString();
+
+    const parts = [];
+    try {
+        const rj = e.responseJSON;
+        if (rj) {
+            if (typeof rj === "string") parts.push(rj);
+            else if (rj.error) parts.push(typeof rj.error === "string" ? rj.error : safeStringify(rj.error));
+            else if (rj.code) parts.push(rj.code);
+            else parts.push(safeStringify(rj));
+        } else if (e.response) {
+            const r = e.response;
+            if (typeof r === "string") parts.push(r);
+            else if (r.error) parts.push(typeof r.error === "string" ? r.error : safeStringify(r.error));
+            else parts.push(safeStringify(r));
+        } else if (typeof e.responseText === "string" && e.responseText.length > 0) {
+            parts.push(e.responseText);
+        } else if (e.message) {
+            parts.push(String(e.message));
+        }
+        if (typeof e.status === "number" && e.status !== 0) {
+            parts.push("status=" + e.status);
+        }
+    } catch (_) {}
+
+    if (parts.length > 0) return parts.join(" ");
+
+    const s = safeStringify(e);
+    return (s && s !== "{}") ? s : String(e);
+}
+
+function safeStringify(obj) {
+    try {
+        const seen = new WeakSet();
+        return JSON.stringify(obj, (k, v) => {
+            if (typeof v === "object" && v !== null) {
+                if (seen.has(v)) return "[Circular]";
+                seen.add(v);
+            }
+            if (typeof v === "function") return undefined;
+            return v;
+        });
+    } catch (e) {
+        try { return String(obj); } catch (_) { return ""; }
+    }
+}
+
 let finishWithErrorCalled = false;
 function finishWithError(msg, e) {
     if (finishWithErrorCalled) return;
     finishWithErrorCalled = true;
-    if (importWatchdogId) { clearTimeout(importWatchdogId); importWatchdogId = null; }
-    if (!data) data = {};
+    try {
+        if (importWatchdogId) { clearTimeout(importWatchdogId); importWatchdogId = null; }
+        if (!data) data = {};
 
-    const eventContext = buildEventContext();
-    if (data.info) delete(data.info);
+        const eventContext = buildEventContext();
+        if (data.info) delete(data.info);
 
-    if (e && e.message) msg = msg + ": " + e.message;
-    else if (e) msg = msg + ": " + JSON.stringify(e);
+        const errStr = formatError(e);
+        if (errStr) msg = msg + ": " + errStr;
 
-    let plugin_errors = null;
-    if (pluginErrors.length > 0) {
-        msg = msg + " there were plugin errors.";
-        plugin_errors = pluginErrors.map((p) => ({
-            error: p.error && p.error.message,
-            stack: p.error && p.error.stack
-        }));
+        let plugin_errors = null;
+        if (pluginErrors.length > 0) {
+            msg = msg + " There were plugin errors.";
+            plugin_errors = pluginErrors.map((p) => ({
+                error: p.error && p.error.message,
+                stack: p.error && p.error.stack
+            }));
+        }
+        data.objects = [];
+        data.Error = {
+            code: "hotfolder-collection-upload-error",
+            error: msg + " " + EVENT_HINT,
+            realm: "api",
+            statuscode: 400
+        };
+
+        const end = () => {
+            closeFileLogging();
+            writeResponseAndExit(data);
+        };
+        Promise.resolve(logPluginEvent(EVENT_TYPE_ERROR, Object.assign({
+            stage: "finish_with_error",
+            error: msg,
+            stack: e && e.stack ? e.stack : null,
+            plugin_errors: plugin_errors
+        }, eventContext))).then(end, end);
+    } catch (fatal) {
+        // Last-resort: never leave fylr with a truncated/empty response.
+        try {
+            const fallback = {
+                objects: [],
+                Error: {
+                    code: "hotfolder-collection-upload-error",
+                    error: (msg || "CSV Importer error") + " [finishWithError threw: " + (fatal && fatal.message) + "] " + EVENT_HINT,
+                    realm: "api",
+                    statuscode: 400
+                }
+            };
+            writeResponseAndExit(fallback);
+        } catch (_) {
+            try { process.exit(1); } catch (__) {}
+        }
     }
-    data.objects = [];
-    data.Error = {
-        code: "hotfolder-collection-upload-error",
-        error: msg,
-        realm: "api",
-        statuscode: 400
-    };
-
-    const end = () => {
-        closeFileLogging();
-        writeResponseAndExit(data);
-    };
-    Promise.resolve(logPluginEvent(EVENT_TYPE_ERROR, Object.assign({
-        stage: "finish_with_error",
-        error: msg,
-        stack: e ? e.stack : null,
-        plugin_errors: plugin_errors
-    }, eventContext))).then(end, end);
 }
