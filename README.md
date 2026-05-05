@@ -19,11 +19,13 @@ Server-side plugin that enables CSV import functionality through Fylr's hotfolde
 
 1. **Via URL (recommended):**
    - Use the following URL to install the plugin and **receive automatic updates** in your instance:
-   - [https://programmfabrik.github.io/fylr-plugin-collection-csv-import/fylr-plugin-collection-csv-import-618be833-e568-4198-9132-29a90eb3803d-latest.zip](https://programmfabrik.github.io/fylr-plugin-collection-csv-import/fylr-plugin-collection-csv-import-618be833-e568-4198-9132-29a90eb3803d-latest.zip)
+   - [https://github.com/programmfabrik/fylr-plugin-collection-csv-import/releases/latest/download/fylr-plugin-collection-csv-import.zip](https://github.com/programmfabrik/fylr-plugin-collection-csv-import/releases/latest/download/fylr-plugin-collection-csv-import.zip)
 
 2. **Via ZIP:**
    - Download the latest version from the releases page
-   - Use the Plugin Manager in Fylr to install the downloaded plugin package. Plugins installed via ZIP don't get updated automatically.
+   - Plugins installed via ZIP don't get updated automatically.
+
+Use the Plugin Manager in Fylr to install the downloaded plugin package.
 
 ## Configuration
 
